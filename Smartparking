@@ -1,0 +1,365 @@
+
+Importing packages and libraries
+
+import numpy as np # linear algebra #rgb values for images exist in a np array
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import os
+import PIL # Importing Image class from PIL module
+from PIL import Image
+import matplotlib.pyplot as plt
+from matplotlib.image import imread
+import cv2
+#import time
+import tensorflow as tf
+from tensorflow import keras
+from sklearn.model_selection import train_test_split
+#from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
+
+Loading Data
+
+data_path = "/kaggle/input/find-a-car-park/data/"
+Categories = ["Free", "Full"]
+img_size = 150
+
+data = []
+
+def create_data():    
+    for category in Categories:
+        path = os.path.join(data_path,category)
+        class_num = Categories.index(category)
+        print(path) #lepath to each category file
+        for img in os.listdir(path):
+            print(img) #path to each image in the category files
+            img_arr = cv2.imread(os.path.join(path,img))
+            new_img_arr = cv2.resize(img_arr,(img_size,img_size))
+            data.append([new_img_arr,class_num])
+create_data()   
+
+print(len(data))
+
+3262
+
+X= [] #store images
+Y= [] #store lables["free","full"]
+
+for features, labels in data:
+    X.append(features)
+    Y.append(labels)
+
+Each Images is stored in terms of its RGB values in an array
+
+X[0]
+
+array([[[ 77,  64,  75],
+        [ 76,  63,  75],
+        [ 83,  74,  87],
+        ...,
+        [107,  92, 106],
+        [104,  89, 103],
+        [105,  92, 106]],
+
+       [[ 76,  64,  76],
+        [ 79,  68,  78],
+        [ 86,  78,  89],
+        ...,
+        [107,  92, 106],
+        [ 99,  85,  98],
+        [116, 101, 117]],
+
+       [[ 76,  66,  76],
+        [ 77,  64,  75],
+        [ 86,  78,  88],
+        ...,
+        [105,  90, 106],
+        [ 97,  83,  97],
+        [105,  92, 109]],
+
+       ...,
+
+       [[139, 134, 142],
+        [197, 190, 196],
+        [198, 194, 199],
+        ...,
+        [100,  87,  88],
+        [ 98,  84,  85],
+        [ 98,  86,  87]],
+
+       [[189, 183, 187],
+        [190, 184, 189],
+        [200, 193, 199],
+        ...,
+        [239, 226, 210],
+        [203, 187, 177],
+        [122, 110, 102]],
+
+       [[191, 188, 190],
+        [195, 191, 196],
+        [198, 192, 197],
+        ...,
+        [146, 127, 124],
+        [130, 116, 117],
+        [111,  99,  99]]], dtype=uint8)
+
+Splitting data into training and testting dataset
+
+# separate data
+#training data - 80% of data
+#testing data - 20% of data
+#random_state is used to get the same split everytime. If we do not fix it, it would result in a different split everytme the code is run
+x_train,x_test,y_train,y_test=train_test_split(X,Y,test_size=0.20,random_state=42)
+
+Normalising Images
+
+Why do we normalize images in deep learning?
+
+When using the image as it is and passing through a Deep Neural Network, the computation of high numeric values may become more complex. To reduce this we can normalize the values to range from 0 to 1. In this way, the numbers will be small and the computation becomes easier and faster.
+
+Reference- https://medium.com/analytics-vidhya/a-tip-a-day-python-tip-8-why-should-we-normalize-image-pixel-values-or-divide-by-255-4608ac5cd26a
+
+def process_images(image):
+    # Normalize images to have a mean of 0 and standard deviation of 1
+    image = tf.image.per_image_standardization(image)
+    # Resize images from 32x32 to 277x277
+    image = tf.image.resize(image, (227,227))
+    return image
+
+x_train = process_images(x_train)
+x_test = process_images(x_test)
+
+2022-05-02 17:07:08.275893: I tensorflow/core/common_runtime/process_util.cc:146] Creating new thread pool with default inter op setting: 2. Tune using inter_op_parallelism_threads for best performance.
+
+Converting to an np array
+
+NumPy arrays are faster and more compact than Python lists. An array consumes less memory and is convenient to use. NumPy uses much less memory to store data and it provides a mechanism of specifying the data types. This allows the code to be optimized even further.
+
+x_train = np.array(x_train).reshape(-1, 227, 227, 3)
+y_train = np.array(y_train)
+x_test = np.array(x_test).reshape(-1, 227, 227, 3)
+y_test = np.array(y_test)
+
+Validating on Data(20% of training data)
+
+x_validate = x_train[:520]
+x_train = x_train[521:]
+y_validate = y_train[:520]
+y_train = y_train[521:]
+
+Building the model
+
+Keras implementation of the AlexNet CNN architecture.
+
+model = keras.models.Sequential([
+    keras.layers.Conv2D(filters=96, kernel_size=(11,11), strides=(4,4), activation='relu', input_shape=(227,227,3)),
+    keras.layers.BatchNormalization(),
+    keras.layers.MaxPool2D(pool_size=(3,3), strides=(2,2)),
+    keras.layers.Conv2D(filters=256, kernel_size=(5,5), strides=(1,1), activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.MaxPool2D(pool_size=(3,3), strides=(2,2)),
+    keras.layers.Conv2D(filters=384, kernel_size=(3,3), strides=(1,1), activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.Conv2D(filters=384, kernel_size=(3,3), strides=(1,1), activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.Conv2D(filters=256, kernel_size=(3,3), strides=(1,1), activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.MaxPool2D(pool_size=(3,3), strides=(2,2)),
+    keras.layers.Flatten(),
+    keras.layers.Dense(4096, activation='relu', input_shape=(227,227,3)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(4096, activation='relu', input_shape=(227,227,3)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(10, activation='softmax', input_shape=(227,227,3))
+])
+
+model.compile(loss='sparse_categorical_crossentropy', optimizer=tf.optimizers.SGD(learning_rate=0.001), metrics=['accuracy'])
+model.summary()
+
+Model: "sequential"
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+conv2d (Conv2D)              (None, 55, 55, 96)        34944     
+_________________________________________________________________
+batch_normalization (BatchNo (None, 55, 55, 96)        384       
+_________________________________________________________________
+max_pooling2d (MaxPooling2D) (None, 27, 27, 96)        0         
+_________________________________________________________________
+conv2d_1 (Conv2D)            (None, 27, 27, 256)       614656    
+_________________________________________________________________
+batch_normalization_1 (Batch (None, 27, 27, 256)       1024      
+_________________________________________________________________
+max_pooling2d_1 (MaxPooling2 (None, 13, 13, 256)       0         
+_________________________________________________________________
+conv2d_2 (Conv2D)            (None, 13, 13, 384)       885120    
+_________________________________________________________________
+batch_normalization_2 (Batch (None, 13, 13, 384)       1536      
+_________________________________________________________________
+conv2d_3 (Conv2D)            (None, 13, 13, 384)       1327488   
+_________________________________________________________________
+batch_normalization_3 (Batch (None, 13, 13, 384)       1536      
+_________________________________________________________________
+conv2d_4 (Conv2D)            (None, 13, 13, 256)       884992    
+_________________________________________________________________
+batch_normalization_4 (Batch (None, 13, 13, 256)       1024      
+_________________________________________________________________
+max_pooling2d_2 (MaxPooling2 (None, 6, 6, 256)         0         
+_________________________________________________________________
+flatten (Flatten)            (None, 9216)              0         
+_________________________________________________________________
+dense (Dense)                (None, 4096)              37752832  
+_________________________________________________________________
+dropout (Dropout)            (None, 4096)              0         
+_________________________________________________________________
+dense_1 (Dense)              (None, 4096)              16781312  
+_________________________________________________________________
+dropout_1 (Dropout)          (None, 4096)              0         
+_________________________________________________________________
+dense_2 (Dense)              (None, 10)                40970     
+=================================================================
+Total params: 58,327,818
+Trainable params: 58,325,066
+Non-trainable params: 2,752
+_________________________________________________________________
+
+Fitting the model to our dataset
+
+Using callbacks() from Keras to decide optimal epochs
+
+keras.callbacks.callbacks.EarlyStopping() Either loss/accuracy values can be monitored by Early stopping call back function. If the loss is being monitored, training comes to halt when there is an increment observed in loss values. Or, If accuracy is being monitored, training comes to halt when there is decrement observed in accuracy values.
+
+from keras import callbacks
+earlystopping = callbacks.EarlyStopping(monitor ="val_loss",mode ="min", patience = 5,restore_best_weights = True)
+
+# fit the model
+history = model.fit(x_train,y_train, epochs=25, validation_data = (x_validate,y_validate),callbacks =[earlystopping])
+
+2022-05-02 17:09:04.050278: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:185] None of the MLIR Optimization Passes are enabled (registered 2)
+
+Epoch 1/25
+66/66 [==============================] - 126s 2s/step - loss: 1.2113 - accuracy: 0.7007 - val_loss: 1.9031 - val_accuracy: 0.7712
+Epoch 2/25
+66/66 [==============================] - 124s 2s/step - loss: 0.4885 - accuracy: 0.8295 - val_loss: 1.0825 - val_accuracy: 0.8635
+Epoch 3/25
+66/66 [==============================] - 125s 2s/step - loss: 0.3195 - accuracy: 0.8841 - val_loss: 0.4665 - val_accuracy: 0.8808
+Epoch 4/25
+66/66 [==============================] - 124s 2s/step - loss: 0.2270 - accuracy: 0.9176 - val_loss: 0.2343 - val_accuracy: 0.9019
+Epoch 5/25
+66/66 [==============================] - 126s 2s/step - loss: 0.1529 - accuracy: 0.9387 - val_loss: 0.1413 - val_accuracy: 0.9385
+Epoch 6/25
+66/66 [==============================] - 123s 2s/step - loss: 0.1276 - accuracy: 0.9483 - val_loss: 0.1111 - val_accuracy: 0.9615
+Epoch 7/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0899 - accuracy: 0.9665 - val_loss: 0.0935 - val_accuracy: 0.9673
+Epoch 8/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0619 - accuracy: 0.9756 - val_loss: 0.1222 - val_accuracy: 0.9596
+Epoch 9/25
+66/66 [==============================] - 123s 2s/step - loss: 0.0723 - accuracy: 0.9713 - val_loss: 0.0959 - val_accuracy: 0.9712
+Epoch 10/25
+66/66 [==============================] - 123s 2s/step - loss: 0.0619 - accuracy: 0.9751 - val_loss: 0.1269 - val_accuracy: 0.9615
+Epoch 11/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0512 - accuracy: 0.9789 - val_loss: 0.0716 - val_accuracy: 0.9788
+Epoch 12/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0489 - accuracy: 0.9818 - val_loss: 0.0722 - val_accuracy: 0.9788
+Epoch 13/25
+66/66 [==============================] - 125s 2s/step - loss: 0.0383 - accuracy: 0.9880 - val_loss: 0.0732 - val_accuracy: 0.9769
+Epoch 14/25
+66/66 [==============================] - 125s 2s/step - loss: 0.0289 - accuracy: 0.9885 - val_loss: 0.0692 - val_accuracy: 0.9827
+Epoch 15/25
+66/66 [==============================] - 126s 2s/step - loss: 0.0282 - accuracy: 0.9904 - val_loss: 0.0750 - val_accuracy: 0.9808
+Epoch 16/25
+66/66 [==============================] - 125s 2s/step - loss: 0.0258 - accuracy: 0.9919 - val_loss: 0.0665 - val_accuracy: 0.9865
+Epoch 17/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0220 - accuracy: 0.9928 - val_loss: 0.0818 - val_accuracy: 0.9827
+Epoch 18/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0207 - accuracy: 0.9943 - val_loss: 0.0763 - val_accuracy: 0.9846
+Epoch 19/25
+66/66 [==============================] - 125s 2s/step - loss: 0.0160 - accuracy: 0.9947 - val_loss: 0.0789 - val_accuracy: 0.9808
+Epoch 20/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0166 - accuracy: 0.9962 - val_loss: 0.0793 - val_accuracy: 0.9808
+Epoch 21/25
+66/66 [==============================] - 124s 2s/step - loss: 0.0180 - accuracy: 0.9933 - val_loss: 0.0808 - val_accuracy: 0.9788
+
+model.evaluate(x_test, y_test)
+
+21/21 [==============================] - 12s 556ms/step - loss: 0.0856 - accuracy: 0.9663
+
+[0.08562827855348587, 0.9663093686103821]
+
+Test data (20% of kaggle dataset)
+
+# getting predictions on test set.
+pred=model.predict(x_test)
+pred_digits=np.argmax(pred,axis=1)
+
+#Storing properly classified and misclassified indexes
+i=0
+prop_class=[]
+mis_class=[]
+
+for i in range(len(y_test)):
+    if(y_test[i] ==pred_digits[i]):
+        prop_class.append(i)
+    else:
+        mis_class.append(i)
+        
+print("Properly predicted: " + str(len(prop_class)))
+print("Misclassified: " + str(len(mis_class)))
+   
+
+Properly predicted: 631
+Misclassified: 22
+
+Visualizing results
+
+The images are different in color due to normalization
+
+count=0
+fig,ax=plt.subplots(4,2)
+fig.set_size_inches(15,15)
+for i in range (4):
+    for j in range (2):
+        ax[i,j].imshow(x_test[prop_class[count]])
+        ax[i,j].set_title("Predicted : "+str(pred_digits[prop_class[count]])+"\n"+"Actual : "+str(np.argmax([y_test[prop_class[count]]])))
+        plt.tight_layout()
+        count+=1
+
+Running the model on images taken from OWU Parking Lot
+
+test_data_path = "/kaggle/input/owu-images/" #Loading image from url
+owu_img_data = []
+owu_img_np=[]
+for owu_test_img in os.listdir(test_data_path):  
+   # print(owu_test_img)
+    owu_img_data.append(os.path.join(test_data_path,owu_test_img))
+    test_img_arr = cv2.imread(os.path.join(test_data_path,owu_test_img))
+    test_new_img_arr = cv2.resize(test_img_arr,(img_size,img_size))
+    test_img = process_images(test_new_img_arr)
+    test_img= tf.image.per_image_standardization(test_img) #added
+    test_img = np.array(test_img).reshape(-1, 227, 227, 3) #converting rgb values into np aaray
+    owu_img_np.append(test_img)
+
+owu_predictions=[]
+for test_img in owu_img_np: 
+        owu_pred=model.predict(test_img)
+        owu_pred_digits=np.argmax(owu_pred,axis=1)
+        owu_predictions.append(float(owu_pred_digits))
+        
+
+Results
+
+owu_results = []
+for pred in owu_predictions:
+    if(pred == 0):
+        owu_results.append("free")
+    else:
+        owu_results.append("full")
+
+# create figure
+fig = plt.figure(figsize=(20, 10))
+k=0
+for test_img in owu_img_data: 
+    k = k+1
+    fig.add_subplot(5,4,k)
+    plt.imshow(imread(test_img))
+    plt.axis('off')
+    plt.title(owu_results[owu_img_data.index(test_img)])
+plt.show()
+
